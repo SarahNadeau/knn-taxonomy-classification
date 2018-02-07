@@ -22,7 +22,6 @@ class VectorizeMethods:
             ngrams[''.join(gram)] = 0
         for s in range(0, len(seq) - n + 1):
             ngrams[seq[s:s + n]] += 1
-        # print(ngrams)
         return ngrams
 
 class GetTrainData:
@@ -31,37 +30,36 @@ class GetTrainData:
 
     @staticmethod
     def get_train_fasta(n):
+        X_train = []
+        y_train = []
+
         for filename in os.listdir('Genomes'):
             if filename.endswith(".fna"): ###
                 filepath = os.path.join('Genomes', filename)
-                seqs = []
-                num_seqs = 0
-                for seq_record in SeqIO.parse(filepath, 'fasta'):
-                    id = seq_record.id
-                    print(id)
-                    seq = seq_record.seq
-                    seqs.append(seq)
 
-                X = []
-                y = []
                 scaffold_vecs = []
                 scaffold_lengths = []
-                for seq in seqs:
+
+                for seq_record in SeqIO.parse(filepath, 'fasta'):
+                    id = seq_record.id # ID is currently a scaffold id! Should be for whole genome!
+                    seq = seq_record.seq
                     scaffold_vecs.append(np.array(list(VectorizeMethods.make_ngram(seq, n).values())))
                     scaffold_lengths.append((len(seq) - n + 1))
-                vec = sum(scaffold_vecs)/sum(scaffold_lengths)
-                X.append(vec)
-                y.append(id)
 
-        return X, y
+                genome_vec = sum(scaffold_vecs)/sum(scaffold_lengths)
+                X_train.append(genome_vec)
+                y_train.append(id)
 
-class GenerateSeq:
+        return X_train, y_train
+
+
+class GetTestData:
     def __init__(self):
         pass
 
     # This function takes in a filepath and returns a DNA sequence of length k, genome ID
     @staticmethod
-    def get_genbank(k, filepath, filetype):
+    def get_genbank(k, filepath, filetype): ### no num_seqs criteria here
         for seq_record in SeqIO.parse(filepath, filetype):
             # note - only returns sequence from first seq_record if multiple
             rand_start = np.random.randint(0, len(seq_record.seq) - k + 1)
@@ -76,7 +74,6 @@ class GenerateSeq:
         for seq_record in SeqIO.parse(filepath, 'fasta'):
             if num_seqs < num_test_seqs:
                 ids.append(seq_record.id)
-                print(seq_record.id)
                 # note - only returns sequence from first seq_record if multiple
                 seq = seq_record.seq
                 seqs.append(seq)
@@ -95,6 +92,7 @@ class GenerateSeq:
                 ids.append(seq_record.id)
                 # note - only returns sequence from first seq_record if multiple
                 seq = seq_record.seq
+                print(seq)
                 seqs.append(seq)
                 num_seqs += 1
             else:
@@ -112,11 +110,11 @@ class GetXSeqsYIDs:
         org_num = 0
         X = []
         y = []
-        for filename in os.listdir('Genomes'):
+        for filename in os.listdir('TestData'):
             if filename.endswith('.gbff'):
-                filename = os.path.join('Genomes', filename)
+                filename = os.path.join('TestData', filename)
                 for i in range(0, num_test_seqs):
-                    test_seq, test_id = GenerateSeq.get_genbank(len_test_seqs, filename, 'genbank')
+                    test_seq, test_id = GetTestData.get_genbank(len_test_seqs, filename, 'genbank')
                     test_vec = np.array(list(VectorizeMethods.make_ngram(test_seq, n).values())) / (len(test_seq) - n + 1)
                     X.append(test_vec)
                     y.append(test_id)
@@ -126,15 +124,13 @@ class GetXSeqsYIDs:
 
     @staticmethod
     # This function returns array of vectorized DNA sequences (X), array of sequence IDs (y)
-    # for file HiSeq_accuracy.fa in directory
     def get_fasta_arrays(num_test_seqs, n):
         X = []
         y = []
-        for filename in os.listdir('Genomes'):
-            if filename.endswith(".fna"): ###
-                print(filename)
-                filename = os.path.join('Genomes', filename)
-                seq_list, id_list = GenerateSeq.get_fasta(filename, num_test_seqs)
+        for filename in os.listdir('TestData'):
+            if filename.endswith(".fa"):
+                filename = os.path.join('TestData', filename)
+                seq_list, id_list = GetTestData.get_fasta(filename, num_test_seqs)
                 for seq in seq_list:
                     vec = np.array(list(VectorizeMethods.make_ngram(seq, n).values())) / (len(seq) - n + 1)
                     X.append(vec)
@@ -145,21 +141,21 @@ class GetXSeqsYIDs:
 
     @staticmethod
     # This function returns array of vectorized DNA sequences (X), array of sequence IDs (y)
-    # for file HiSeq_accuracy.fa in directory
     def get_fastq_arrays(num_test_seqs, n):
         X = []
         y = []
-        for filename in os.listdir('Genomes'):
-            if filename.endswith(".fq"):
-                filename = os.path.join('Genomes', filename)
-                seq_list, id_list = GenerateSeq.get_fastq(filename, num_test_seqs)
+        for filename in os.listdir('TestData'):
+            # if filename.endswith(".fq") or filename.endswith(".fastq"):
+            # if filename.endswith(".fq"):
+            if filename.endswith(".fastq") or filename.endswith(".fq"):
+                filename = os.path.join('TestData', filename)
+                seq_list, id_list = GetTestData.get_fastq(filename, num_test_seqs)
                 for seq in seq_list:
                     vec = np.array(list(VectorizeMethods.make_ngram(seq, n).values())) / (len(seq) - n + 1)
                     X.append(vec)
                 for id in id_list:
                     id = id.split('.')[0]
                     y.append(id)
-        print(y)
         return X, y
 
 
@@ -181,8 +177,8 @@ def main():
         n_neighbors = 1
         num_test_seqs = 20
         len_test_seqs = 150 # applies only to sequences fetched from genbank files
-        # test filetype options are 'genbank', 'fasta', 'fastq'
-        test_filetype = 'fasta'
+        # filetype options are 'genbank', 'fasta', 'fastq'
+        test_filetype = 'fastq' ### file format error - "sequence and quality captions differ"
         print(" {}-grams, \n number of neighbors = {}, \n number of test sequences = {}, \n test filetype = {} \n"
               .format(n, n_neighbors, num_test_seqs, test_filetype))
     else:
@@ -191,19 +187,23 @@ def main():
         num_test_seqs = input("Enter number of test sequences to generate: ")
         test_filetype = input("Enter a valid filetype ('genbank', 'fasta', or 'fastq': ")
 
-    GetTrainData.get_train_fasta(n)
 
-    # generate arrays (X, y) of vectorized sequences and genome IDs
+    # generate training data arrays (X_train, y_train) of vectorizing genomes in file Genomes
+    ### y_train needs to be same lables as y_test !!
+    X_train, y_train = GetTrainData.get_train_fasta(n)
+
+    # generate testing data arrays (X_test, y_test) of vectorized sequences and genome IDs
     if test_filetype == "genbank":
-        X, y = GetXSeqsYIDs.get_genbank_arrays(num_test_seqs, len_test_seqs, n)
+        X_test, y_test = GetXSeqsYIDs.get_genbank_arrays(num_test_seqs, len_test_seqs, n)
     elif test_filetype == 'fasta':
-        X, y = GetXSeqsYIDs.get_fasta_arrays(num_test_seqs, n)
-        print (X) ###
-        print(y) ###
-        print("number of sequences vectorized: {}".format(len(X)))
+        X_test, y_test = GetXSeqsYIDs.get_fasta_arrays(num_test_seqs, n)
     elif test_filetype == 'fastq':
-        X, y = GetXSeqsYIDs.get_fastq_arrays(num_test_seqs, n)
-        print("number of sequences vectorized: {}".format(len(X)))
+        X_test, y_test = GetXSeqsYIDs.get_fastq_arrays(num_test_seqs, n)
+    print("number of test sequences: {}".format(len(X_test)))
+    print("X for test sequences: {}".format(X_test))
+    print("X for train sequences: {}".format(X_train))
+    print("y for test sequences: {}".format(y_test))
+    print("y for train sequences: {}".format(y_train))
 
     # plot n-gram separation between organisms
     # pca = sklearnPCA(n_components=2)  # 2-dimensional PCA
@@ -212,10 +212,6 @@ def main():
     # plt.scatter(transformed[:, 0], transformed[:, 1], c=y_colors)
     # plt.title("< insert file name >, {}-grams, {} neighbors".format(n, n_neighbors))
     # plt.show()
-
-    # split X an y into training and test set for KNN
-    # eventually training set should be NCBI reference genomes and testing set should be metagenomic samples
-    X_train, X_test, y_train, y_test = model_selection.train_test_split(X, y, test_size=0.33, random_state=42)
 
     # # classify sequence by nearest neighbor in database
     # knn = neighbors.KNeighborsClassifier(n_neighbors=n_neighbors)
@@ -226,3 +222,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+    # try re-downloading fastq files and not opening with text editor (currently a \ at end of each line)
