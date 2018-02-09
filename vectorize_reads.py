@@ -60,35 +60,12 @@ class GetTestData:
     def __init__(self):
         pass
 
-    # This function takes in a fasta file's filepath and returns all DNA sequences, IDs
-    @staticmethod
-    def get_fasta(num_test_seqs, n):
-        ids = []
-        X = []
-        y = []
-        num_seqs = 0
-
-        for filename in os.listdir('TestData'):
-            if filename.endswith(".fa") or filename.endswith(".fasta"):
-                filepath = os.path.join('TestData', filename)
-                for seq_record in SeqIO.parse(filepath, 'fasta'):
-                    if num_seqs < num_test_seqs:
-                        id = seq_record.id.split('.')[0] ### id won't match train id
-                        y.append(id)
-                        # note - only returns sequence from first seq_record if multiple
-                        seq = seq_record.seq
-                        vec = np.array(list(VectorizeMethods.make_ngram(seq, n).values())) / (len(seq) - n + 1)
-                        X.append(vec)
-                        num_seqs += 1
-
-        return X, y
-
     # This function takes in a fastq file's filepath and returns all DNA sequences, IDs
+    # designed to take in input from Metabenchmark study's simulated metagenomic reads
     @staticmethod
-    def get_fastq(num_test_seqs, n):
-        ids = []
-        X = []
-        y = []
+    def get_test_fastq(num_test_seqs, n):
+        X_test = []
+        y_test = []
         num_seqs = 0
 
         for filename in os.listdir('TestData'):
@@ -96,15 +73,33 @@ class GetTestData:
                 filepath = os.path.join('TestData', filename)
                 for seq_record in SeqIO.parse(filepath, 'fastq'):
                     if num_seqs < num_test_seqs:
-                        id = seq_record.id.split('.')[0]
-                        y.append(id)
-                        # note - only returns sequence from first seq_record if multiple
+                        id = seq_record.id.split('-')[0]
+                        y_test.append(id)
                         seq = seq_record.seq
                         vec = np.array(list(VectorizeMethods.make_ngram(seq, n).values())) / (len(seq) - n + 1)
-                        X.append(vec)
+                        X_test.append(vec)
                         num_seqs += 1
 
-        return X, y
+        return X_test, y_test
+
+    # This function fetches only specific test sequences with original or relative in training set
+    # designed for Metabenchmark file setA1_1-0.fq.gz
+    @staticmethod
+    def get_test_fastq_specific(num_test_seqs, n):
+        X_test = []
+        y_test = []
+
+        for filename in os.listdir('TestData'):
+            if filename.endswith(".fq") or filename.endswith(".fastq"):
+                filepath = os.path.join('TestData', filename)
+                for seq_record in SeqIO.parse(filepath, 'fastq'):
+                    id = seq_record.id.split('-')[0]
+                    if id in ["AE016823", "AP006618", "AP010889", "CP000360", "CP004405", "FP929050"]:
+                        y_test.append(id)
+                        seq = seq_record.seq
+                        vec = np.array(list(VectorizeMethods.make_ngram(seq, n).values())) / (len(seq) - n + 1)
+                        X_test.append(vec)
+        return X_test, y_test
 
 
 # This function is used to convert tax labels to ints for plotting legend
@@ -140,10 +135,7 @@ def main():
     X_train, y_train = GetTrainData.get_train_fasta(n)
 
     # generate testing data arrays (X_test, y_test) of vectorized sequences and genome IDs
-    if test_filetype == 'fasta':
-        X_test, y_test = GetTestData.get_fasta(num_test_seqs, n)
-    elif test_filetype == 'fastq':
-        X_test, y_test = GetTestData.get_fastq(num_test_seqs, n)
+    X_test, y_test = GetTestData.get_test_fastq(num_test_seqs, n)
 
     print("number of test sequences: {}".format(len(X_test)))
     print("X for test sequences: {}".format(X_test))
@@ -159,11 +151,11 @@ def main():
     # plt.title("< insert file name >, {}-grams, {} neighbors".format(n, n_neighbors))
     # plt.show()
 
-    # # classify sequence by nearest neighbor in database
-    # knn = neighbors.KNeighborsClassifier(n_neighbors=n_neighbors)
-    # print('KNN score: %f' % knn.fit(X_train, y_train).score(X_test, y_test))
-    # print('with n = {}'.format(n))
-    # print('with n_neighbors = {}'.format(n_neighbors))
+    # classify sequence by nearest neighbor in database
+    knn = neighbors.KNeighborsClassifier(n_neighbors=n_neighbors)
+    print('KNN score: %f' % knn.fit(X_train, y_train).score(X_test, y_test))
+    print('with n = {}'.format(n))
+    print('with n_neighbors = {}'.format(n_neighbors))
 
 
 if __name__ == '__main__':
