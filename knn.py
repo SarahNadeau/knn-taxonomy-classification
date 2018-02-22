@@ -43,102 +43,66 @@ class VectorizeMethods:
         return vec
 
 
-class GetTrainData:
-    def __init__(self):
-        pass
-
-    @staticmethod
-    def get_seq(k, n, num_seqs, bins):
-        X = []
-        y = []
-        for filename in os.listdir('Genomes'):
-            if filename.endswith(".fasta.txt"):
-                filepath = os.path.join('Genomes', filename)
-
-                for seq_record in SeqIO.parse(filepath, 'fasta'):
-                    for i in range(0, num_seqs):
-                        # note - only returns sequence from last seq_record if multiple
-                        rand_start = np.random.randint(0, len(seq_record.seq) - k + 1)
-                        seq = seq_record.seq[rand_start:rand_start + k]
-                        vec_seq = VectorizeMethods.make_ngram(seq, n, bins)
-                        X.append(vec_seq)
-                        id = seq_record.id.split("|")[1].split("|")[0]
-                        y.append(id)
-        return X, y
+# translate string data labels to ints
+def enumerate_y_labels(y_str):
+    ylabel_dict = dict([(y, x) for x, y in enumerate(set(sorted(y_str)))])
+    return [ylabel_dict[x] for x in y_str]
 
 
-# This function is used to convert tax labels to ints for plotting legend
-def sum_chars(word):
-    num = 0
-    for char in word:
-        num += ord(char)
-    return num
+# load data from standardized train/test set
+def load_data():
+    with open('/Users/nadeau/Documents/Metagenome_Classification/train_test_set/X_test150.pickle', 'rb') as f:
+        x_test = pickle.load(f)
+        f.close()
+    with open('/Users/nadeau/Documents/Metagenome_Classification/train_test_set/X_train150.pickle', 'rb') as f:
+        x_train = pickle.load(f)
+        f.close()
+    with open('/Users/nadeau/Documents/Metagenome_Classification/train_test_set/y_test150.pickle', 'rb') as f:
+        y_test_str = pickle.load(f)
+        y_test = enumerate_y_labels(y_test_str)
+        f.close()
+    with open('/Users/nadeau/Documents/Metagenome_Classification/train_test_set/y_train150.pickle', 'rb') as f:
+        y_train_str = pickle.load(f)
+        y_train = enumerate_y_labels(y_train_str)
+        f.close()
+    return x_test, x_train, y_test, y_train
 
 
 def main():
 
     # set parameters
-    n_gram_len = 10
-    n_neighbors = 4
-    num_test_seqs = 5
-    seq_len = 150
-    # bins = 5**n_gram_len
-    bins = 5000
+    n = 3
+    n_neighbors = 20
+    bins = 5**n  # bins = 5**n to have no reduction in dimensionality
 
     # generate samples
-    X, y = GetTrainData.get_seq(seq_len, n_gram_len, num_test_seqs, bins)
+    # X, y = GetTrainData.get_seq(seq_len, n_gram_len, num_test_seqs, bins)
+    x_test, x_train, y_test, y_train = load_data()
 
-    # reduce dimensions by hashing
-
+    # vectorize sequences
+    X_train = []
+    for seq in x_train:
+        X_train.append(VectorizeMethods.make_ngram(seq, n, bins=bins))
+    X_test = []
+    for seq in x_test:
+        X_test.append(VectorizeMethods.make_ngram(seq, n, bins=bins))
 
     # plot n-gram separation between organisms
-    pca = sklearnPCA(n_components=2)  # 2-dimensional PCA
-    transformed = pca.fit_transform(X)
-    y_colors = list(map(lambda x: sum_chars(x), y))
-    plt.scatter(transformed[:, 0], transformed[:, 1], c=y_colors)
-    plt.title("{}-grams with {} bins".format(n_gram_len, bins))
-    plt.show()
-
-    X_train, X_test, y_train, y_test = model_selection.train_test_split(X, y, test_size=0.33)
-
-    # with open('X_test5.pickle', 'wb') as f:
-    #     pickle.dump(X_test, f, pickle.HIGHEST_PROTOCOL)
-    #
-    # with open('X_train5.pickle', 'wb') as f:
-    #     pickle.dump(X_train, f, pickle.HIGHEST_PROTOCOL)
-    #
-    # with open('y_test5.pickle', 'wb') as f:
-    #     pickle.dump(y_test, f, pickle.HIGHEST_PROTOCOL)
-    #
-    # with open('y_train5.pickle', 'wb') as f:
-    #     pickle.dump(y_train, f, pickle.HIGHEST_PROTOCOL)
-
-    # with open('X_test5.pickle', 'rb') as f:
-    #     X_test = pickle.load(f)
-    #
-    # with open('X_train5.pickle', 'rb') as f:
-    #     X_train = pickle.load(f)
-    #
-    # with open('y_test5.pickle', 'rb') as f:
-    #     y_test = pickle.load(f)
-    #
-    # with open('y_train5.pickle', 'rb') as f:
-    #     y_train = pickle.load(f)
-
-    # print(len(X_test[0]))
-
-    # falconn.get_default_parameters()
+    # pca = sklearnPCA(n_components=2)  # 2-dimensional PCA
+    # transformed = pca.fit_transform(X_train)
+    # y_colors = list(y_train)
+    # plt.scatter(transformed[:, 0], transformed[:, 1], c=y_colors)
+    # plt.title("{}-grams with {} bins".format(n, bins))
+    # plt.show()
 
     # classify sequence by nearest neighbor in database
     knn = neighbors.KNeighborsClassifier(n_neighbors=n_neighbors)
     score = knn.fit(X_train, y_train).score(X_test, y_test)
-    print('KNN score: %f' % score)
-    print('with n_gram length = {}'.format(n_gram_len))
+    print('Testing error: {}'.format(1 - score))
+    print('with n-gram length = {}'.format(n))
     print('with number of bins = {}'.format(bins))
     print('with n_neighbors = {}'.format(n_neighbors))
 
 
 if __name__ == '__main__':
     main()
-
-    # try re-downloading fastq files and not opening with text editor (currently a \ at end of each line)
